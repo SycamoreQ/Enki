@@ -19,7 +19,6 @@ except ImportError:
 
 
 class WandBLogger:
-    """Safe W&B wrapper."""
     def __init__(self, enabled=True):
         self.enabled = enabled and WANDB_AVAILABLE
         self.run = None
@@ -71,7 +70,6 @@ DEFAULT_CONFIG = {
 
 
 def normalize_paper_id(paper_id: str) -> str:
-    """Normalize paper ID to consistent format."""
     if not paper_id:
         return ""
     paper_id = str(paper_id).strip().lstrip('0')
@@ -146,7 +144,7 @@ async def build_embeddings():
 @ray.remote
 class DistributedRLTrainer:
     """
-    Distributed RL trainer for parallel training.
+    Distributed RL trainer for parallel training with curriculum learning.
     Each worker trains independently on remote database.
     Called by the coordinator to execute training jobs.
     """
@@ -237,16 +235,16 @@ class DistributedRLTrainer:
         **kwargs
     ) -> Dict:
         """
-        Train RL agent for specified episodes.
+        Train RL agent for specified episodes with curriculum learning.
         
         Args:
             episodes: Number of training episodes
-            query: Search query for RL environment
-            start_paper_id: Starting paper ID
+            query: Base query (used for Stage 1, curriculum generates others)
+            start_paper_id: Starting paper for episode 0
             **kwargs: Additional training config
         
         Returns:
-            Dict with training results
+            Dict with training results + curriculum statistics
         """
         start_time = time.time()
         
@@ -256,7 +254,7 @@ class DistributedRLTrainer:
         
         print(f"\n[{self.worker_id}] Starting Distributed RL Training")
         print(f"  Episodes: {episodes}")
-        print(f"  Query: {query[:50]}...")
+        print(f"  Base Query: {query[:50]}...")
         print(f"  Start paper: {start_paper_id}")
         
         # Initialize environment
@@ -269,10 +267,10 @@ class DistributedRLTrainer:
                 project="Enki",
                 config=CONFIG,
                 name=f"{self.worker_id}_{time.strftime('%Y%m%d_%H%M%S')}",
-                tags=["distributed", "ddqn", self.worker_id]
+                tags=["distributed", "ddqn", "curriculum", self.worker_id]
             )
 
-        # Initialize curriculum manager
+        # Initialize curriculum manager with base query context
         curriculum = CurriculumManager(self.papers, self.encoder)
         
         # Initialize agent
@@ -283,42 +281,65 @@ class DistributedRLTrainer:
             precomputed_embeddings=self.embeddings
         )
         
-        print(f"[{self.worker_id}] Agent initialized")
+        print(f"[{self.worker_id}] DDQN Agent initialized on cpu")
+        print(f"Prioritized Replay: {CONFIG['use_prioritized_replay']}")
+        print(f"Replay Buffer Size: 200,000 | Warmup: 32 | Batch: 32")
 
-        # Training state
+        # Training state tracking
         episode_rewards = []
         episode_similarities = []
         episode_lengths = []
         dead_end_count = 0
         success_count = 0
         total_training_steps = 0
+        stage_stats = defaultdict(list) 
 
-        # Main training loop - YOUR EXISTING LOGIC
+        # Main curriculum-aware training loop
         for episode in range(episodes):
             try:
+                # Get current curriculum stage
                 stage = curriculum.get_current_stage(episode)
-
-                # Get query and starting paper
+                
                 if episode == 0:
                     episode_query = query
                     episode_start_paper_id = normalize_paper_id(start_paper_id)
                 else:
+                    # Curriculum selects query + optimal starting paper for this stage
                     episode_query = curriculum.get_query_for_stage(stage, episode)
                     start_paper = curriculum.get_starting_paper(episode_query, stage)
                     episode_start_paper_id = normalize_paper_id(
                         str(start_paper.get('paperId') or start_paper.get('paper_id'))
                     )
-
-                # Validate starting paper
+                
+                # Log curriculum progression
+                stage_name = stage['name'].split(':')[1].strip()[:20]
+                print(f"[{self.worker_id}] Ep {episode:3d}/{episodes} | "
+                      f"Stage: {stage_name:<15} | Steps: {stage['max_steps']:2d} | "
+                      f"Query: {episode_query[:40]}...")
+                
+                # Validate starting paper exists in cache
                 if episode_start_paper_id not in self.env.training_edge_cache:
+                    print(f"  → Skipping: start paper {episode_start_paper_id} not in cache")
+                    episode_rewards.append(0.0)
+                    episode_similarities.append(0.0)
+                    episode_lengths.append(0)
                     continue
 
+                # Validate neighbors exist
                 neighbor_ids = [tid for _, tid in self.env.training_edge_cache[episode_start_paper_id]]
                 if not any(nid in self.embedded_ids for nid in neighbor_ids):
+                    print(f"  → Skipping: no valid neighbors for {episode_start_paper_id}")
+                    episode_rewards.append(0.0)
+                    episode_similarities.append(0.0)
+                    episode_lengths.append(0)
                     continue
 
-                # Reset environment
-                state = await self.env.reset(episode_query, intent=1, start_node_id=episode_start_paper_id)
+                # Reset environment with curriculum parameters
+                state = await self.env.reset(
+                    episode_query, 
+                    intent=1, 
+                    start_node_id=episode_start_paper_id
+                )
                 max_steps = min(stage['max_steps'], CONFIG['max_steps_per_episode'])
 
                 # Run episode
@@ -327,7 +348,7 @@ class DistributedRLTrainer:
                 step_losses = []
 
                 for step in range(max_steps):
-                    # Manager step
+                    # Manager step (hierarchical RL)
                     pid = normalize_paper_id(
                         str(self.env.current_node.get("paperId") or self.env.current_node.get("paper_id"))
                     )
@@ -342,12 +363,12 @@ class DistributedRLTrainer:
                     if is_terminal:
                         break
 
-                    # Worker step
+                    # Worker step (DDQN agent)
                     worker_actions = await self.env.get_worker_actions()
                     if not worker_actions:
                         break
 
-                    # Filter valid actions
+                    # Filter valid actions (cache + embeddings)
                     worker_actions = [
                         (n, r) for (n, r) in worker_actions
                         if normalize_paper_id(
@@ -358,7 +379,7 @@ class DistributedRLTrainer:
                     if not worker_actions:
                         break
 
-                    # Agent selects action
+                    # Agent selects best action
                     best_action = agent.act(state, worker_actions, max_actions=15)
                     if not best_action or not isinstance(best_action, tuple):
                         break
@@ -368,22 +389,22 @@ class DistributedRLTrainer:
                     # Execute action
                     next_state, worker_reward, done = await self.env.worker_step(chosen_node)
                     
+                    # Curriculum-aware exploration bonus
                     exploration_bonus = 0.0
                     if steps >= 5:
-                        exploration_bonus = 0.5 * (steps / max_steps)
-
+                        exploration_bonus = 0.5 * (steps / max_steps) * stage['start_similarity_threshold']
+                    
                     total_reward = worker_reward + exploration_bonus
                     episode_reward += total_reward
                     steps += 1
 
-                    # Get next actions
+                    # Store transition for prioritized replay
                     next_actions = await self.env.get_worker_actions() if not done else []
                     next_actions = [
                         (n, r) for n, r in next_actions
                         if normalize_paper_id(str(n.get('paperId') or n.get('paper_id'))) in self.embedded_ids
                     ][:15]
 
-                    # Store transition
                     agent.remember(
                         state=state,
                         action_tuple=best_action,
@@ -393,12 +414,13 @@ class DistributedRLTrainer:
                         next_actions=next_actions
                     )
                     
-                    # Train
+                    # Train agent
                     if len(agent.memory) >= agent.batch_size and step % CONFIG['train_every_n_steps'] == 0:
                         loss = agent.replay()
                         step_losses.append(loss)
                         total_training_steps += 1
 
+                        # Epsilon decay (post-warmup)
                         if episode >= CONFIG['epsilon_warmup_episodes']:
                             agent.epsilon = max(
                                 CONFIG['epsilon_min'],
@@ -406,11 +428,10 @@ class DistributedRLTrainer:
                             )
 
                     state = next_state
-
                     if done:
                         break
                 
-                # End of episode training
+                # End-of-episode prioritized replay
                 if len(agent.memory) >= agent.batch_size:
                     for _ in range(CONFIG['end_of_episode_replays']):
                         loss = agent.replay()
@@ -423,92 +444,128 @@ class DistributedRLTrainer:
                                 agent.epsilon * CONFIG['epsilon_decay']
                             )
 
-                # Calculate metrics
-                episode_loss = np.mean(step_losses) if step_losses else 0.0
-
-                # Target network update
+                # Update target network
                 if episode % CONFIG['target_update_freq'] == 0 and episode > 0:
                     agent.update_target()
 
-                # Track stats
+                # Track episode metrics
+                episode_loss = np.mean(step_losses) if step_losses else 0.0
+                final_sim = getattr(self.env, 'best_similarity_so_far', 0.0)
+
+                # Stage-specific performance tracking
+                stage_key = stage['query_difficulty']
+                stage_stats[stage_key].append({
+                    'reward': episode_reward,
+                    'similarity': final_sim,
+                    'steps': steps
+                })
+
+                # Global episode tracking
                 if steps < 2:
                     dead_end_count += 1
 
-                final_sim = self.env.best_similarity_so_far
                 if final_sim > 0.5:
                     success_count += 1
 
                 episode_rewards.append(episode_reward)
-                episode_lengths.append(steps)
                 episode_similarities.append(final_sim if final_sim > -0.5 else np.nan)
+                episode_lengths.append(steps)
 
+                # Update curriculum performance
                 curriculum.update_performance(episode_reward, final_sim)
 
-                # Log to W&B
+                # Log to Weights & Biases
                 if logger.enabled:
                     logger.log({
                         "episode": episode,
+                        "stage": stage['query_difficulty'],
                         "episode_reward": episode_reward,
                         "episode_similarity": final_sim,
+                        "episode_steps": steps,
                         "epsilon": agent.epsilon,
                         "loss": episode_loss,
+                        "max_steps": stage['max_steps']
                     })
 
-                # Progress logging
-                if episode % 10 == 0:
-                    avg_reward = np.mean(episode_rewards[-10:])
-                    avg_sim = float(np.nanmean(episode_similarities[-10:]))
-                    print(f"[{self.worker_id}] Episode {episode:4d}/{episodes} | "
-                          f"Reward: {episode_reward:+7.2f} | "
-                          f"Avg(10): {avg_reward:+7.2f} | "
-                          f"Sim: {final_sim:.3f} | "
-                          f"ε: {agent.epsilon:.3f}")
+                # Progress reporting every 10 episodes
+                if episode % 10 == 0 or episode < 5:
+                    recent_rewards = episode_rewards[-10:] if len(episode_rewards) >= 10 else episode_rewards
+                    recent_sims = episode_similarities[-10:] if len(episode_similarities) >= 10 else episode_similarities
+                    
+                    avg_reward = float(np.mean(recent_rewards) if recent_rewards else 0.0)
+                    avg_sim = float(np.nanmean(recent_sims) if recent_sims else 0.0)
+                    
+                    print(f"[{self.worker_id}] Ep {episode:4d}/{episodes} | "
+                          f"R: {episode_reward:+6.2f} | "
+                          f"A10R: {avg_reward:+6.2f} | "
+                          f"S: {final_sim:.3f} | "
+                          f"ε: {agent.epsilon:.3f} | "
+                          f"L: {steps}/{stage['max_steps']}")
             
             except Exception as e:
-                print(f"[{self.worker_id}] Episode {episode} failed: {e}")
+                print(f"[{self.worker_id}] Episode {episode} failed: {str(e)[:100]}")
+                # Record failed episode
+                episode_rewards.append(0.0)
+                episode_similarities.append(0.0)
+                episode_lengths.append(0)
                 continue
         
         duration = time.time() - start_time
         
-        # Save checkpoint
-        checkpoint_path = f"checkpoints/{self.worker_id}_final.pt"
-        os.makedirs('checkpoints', exist_ok=True)
+        # Save curriculum-aware checkpoint
+        checkpoint_dir = f"checkpoints/{self.worker_id}"
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        checkpoint_path = f"{checkpoint_dir}/curriculum_final_ep{episodes}.pt"
         agent.save(checkpoint_path)
         
-        # Results
+        # Compute comprehensive results
+        safe_rewards = episode_rewards if episode_rewards else [0.0]
+        safe_sims = episode_similarities if episode_similarities else [0.0]
+        
         result = {
-            'job_type': 'distributed_rl_training',
+            'job_type': 'distributed_rl_curriculum_training',
             'worker_id': self.worker_id,
             'episodes': episodes,
             'duration_sec': duration,
-            'avg_reward': float(np.mean(episode_rewards) if episode_rewards else 0.0),
-            'max_reward': float(np.max(episode_rewards) if episode_rewards else 0.0),
-            'final_reward': float(episode_rewards[-1]) if episode_rewards else 0.0,
-            'avg_similarity': float(np.nanmean(episode_similarities) if episode_similarities else 0.0),
-            'max_similarity': float(np.nanmax(episode_similarities) if episode_similarities else 0.0),
-            'final_similarity': float(episode_similarities[-1]) if episode_similarities else 0.0,
-            'success_rate': 100 * success_count / episodes,
+            'avg_reward': float(np.mean(safe_rewards)),
+            'max_reward': float(np.max(safe_rewards)),
+            'final_reward': float(safe_rewards[-1]),
+            'avg_similarity': float(np.nanmean(safe_sims)),
+            'max_similarity': float(np.nanmax(safe_sims)),
+            'final_similarity': float(safe_sims[-1]),
+            'success_rate': 100 * success_count / max(episodes, 1),
+            'dead_end_rate': 100 * dead_end_count / max(episodes, 1),
+            'avg_episode_length': float(np.mean(episode_lengths)),
+            'curriculum_stats': dict(stage_stats),
             'checkpoint_path': checkpoint_path,
             'status': 'completed'
         }
         
-        print(f"\n[{self.worker_id}] Training Complete!")
+        # Final summary
+        print(f"\n[{self.worker_id}] 🎓 Curriculum Training Complete!")
         print(f"  Duration: {duration:.1f}s ({duration/60:.1f} min)")
+        print(f"  Total Steps: {total_training_steps:,}")
         print(f"  Avg Reward: {result['avg_reward']:.2f}")
         print(f"  Max Similarity: {result['max_similarity']:.3f}")
+        print(f"  Success Rate: {result['success_rate']:.1f}%")
         print(f"  Checkpoint: {checkpoint_path}")
         
-        logger.finish()
+        # Stage-wise performance
+        print(f"\nStage Performance:")
+        for stage_name, stats in result['curriculum_stats'].items():
+            if stats:
+                avg_reward = np.mean([s['reward'] for s in stats])
+                avg_sim = np.mean([s['similarity'] for s in stats])
+                print(f"  {stage_name.upper()}: R={avg_reward:.2f}, Sim={avg_sim:.3f} (n={len(stats)})")
         
+        logger.finish()
         return result
     
     def __del__(self):
-        """Cleanup."""
+        """Cleanup database connections."""
         if hasattr(self, 'store') and self.store:
             try:
                 import asyncio
                 asyncio.run(self.store.pool.close())
             except:
                 pass
-
-
