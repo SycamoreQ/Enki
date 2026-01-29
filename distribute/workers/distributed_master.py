@@ -294,7 +294,7 @@ async def run_master_loop(coordinator, duration_sec: float = None):
             # Schedule pending jobs
             scheduled = ray.get(coordinator.schedule_jobs.remote())
             if scheduled > 0:
-                print(f"📋 Scheduled {scheduled} jobs")
+                print(f"Scheduled {scheduled} jobs")
             
             # Check completed jobs
             completed = ray.get(coordinator.check_completed_jobs.remote())
@@ -320,7 +320,7 @@ async def run_master_loop(coordinator, duration_sec: float = None):
             await asyncio.sleep(1.0)
             
     except KeyboardInterrupt:
-        print("\n🛑 Coordination interrupted")
+        print("\nCoordination interrupted")
 
 
 async def main():
@@ -357,7 +357,6 @@ async def main():
     print("="*80 + "\n")
     
     ray.init(
-        address='auto',
         dashboard_host='0.0.0.0',
         dashboard_port=master_config['dashboard_port'],
         include_dashboard=True,
@@ -371,6 +370,7 @@ async def main():
     # Create coordinator actor
     coordinator = DistributedTrainingCoordinator.options(
         name="training_coordinator",
+        namespace="distributed_training",
         lifetime="detached",
         max_restarts=-1
     ).remote(config_path=args.config)

@@ -1,4 +1,4 @@
-\database_server:
+database_server:
   host: "192.168.1.10"  # ✓ Your database/master IP
   neo4j_port: 7687
   neo4j_user: "neo4j"
@@ -6,7 +6,7 @@
   database_name: "neo4j"
 
 master_node:
-  host: "192.168.1.10"  # ✓ Master node IP
+  host: "127.0.0.1"  # ✓ Master node IP
   ray_port: 6379        # ✓ Not Redis - just Ray's default port
   dashboard_port: 8265
   redis_password: "5G_cluster"  # ✓ Not actual Redis - Ray internal

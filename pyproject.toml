@@ -27,6 +27,7 @@ dependencies = [
     "redis>=6.4.0",
     "requests>=2.32.5",
     "sentence-transformers>=5.1.2",
+    "spacy>=3.8.11",
     "unstructured>=0.18.21",
     "wandb>=0.23.1",
     "wget>=3.2",

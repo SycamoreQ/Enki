@@ -4,40 +4,43 @@ import time
 import argparse
 
 
-def load_config(config_path):
-    with open(config_path, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
+def load_config(config_path='utils/config/cluster_config.yaml'):
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
 
-def submit_single_job(coordinator , query:str , episode: int , start_paper_id: str): 
-    job_id = ray.get(coordinator.submit_job.remote(query, episode, start_paper_id))
-    print(f"Submitted job with ID: {job_id}")
+
+def submit_single_job(coordinator, query: str, episodes: int, start_paper_id: str):
+    """Submit a single training job"""
+    job_id = ray.get(coordinator.submit_job.remote(query, episodes, start_paper_id))
+    print(f"✓ Job submitted: {job_id}")
     return job_id
 
 
-def wait_for_job(coordinator , job_id: str , timeout: int = 3600, poll_interval: int = 5):
-    print(f"Waiting for job {job_id} to complete")
+def wait_for_job(coordinator, job_id: str, timeout: int = 3600, poll_interval: int = 5):
+    """Wait for job completion and return results"""
+    print(f"\n⏳ Waiting for job {job_id}...")
     start_time = time.time()
-
-    while (time.time() - start_time) < timeout: 
+    
+    while (time.time() - start_time) < timeout:
         status_info = ray.get(coordinator.get_job_status.remote(job_id))
         status = status_info['status']
+        
         print(f"  [{int(time.time() - start_time)}s] Status: {status}", end='\r')
-
+        
         if status == 'completed':
-            print(f"\nob completed in {time.time() - start_time:.1f}s")
+            print(f"\n✓ Job completed in {time.time() - start_time:.1f}s")
             results = ray.get(coordinator.get_results.remote(job_id))
             return results
         
         elif status == 'failed':
-            print(f"\nJob failed")
+            print(f"\n✗ Job failed")
             results = ray.get(coordinator.get_results.remote(job_id))
             return results
         
         time.sleep(poll_interval)
     
     print(f"\nTimeout after {timeout}s")
-    return None 
+    return None
 
 
 def print_results(results):
@@ -45,7 +48,9 @@ def print_results(results):
     if not results:
         return
     
+    print("\n" + "="*80)
     print("TRAINING RESULTS")
+    print("="*80)
     
     if results['status'] == 'failed':
         print(f"Status: FAILED")
@@ -69,8 +74,8 @@ def print_results(results):
     print("="*80 + "\n")
 
 
-
 def submit_batch_jobs(coordinator, jobs_config):
+    """Submit multiple jobs from configuration"""
     job_ids = []
     
     for i, job_cfg in enumerate(jobs_config, 1):
@@ -120,16 +125,16 @@ def main():
     print(f"Master: {master_config['host']}:{master_config['ray_port']}")
     print("="*80 + "\n")
     
-    ray.init(
-        address=f"ray://{master_config['host']}:{master_config['ray_port']}"
-    )
+    ray.init(address="auto", namespace="distributed_training")
+
+
     
     print("✓ Connected to cluster")
     print(f"✓ Available resources: {ray.available_resources()}\n")
     
     # Get coordinator actor
     try:
-        coordinator = ray.get_actor("training_coordinator")
+        coordinator = ray.get_actor("training_coordinator", namespace="distributed_training")
     except ValueError:
         print("✗ Coordinator not found. Make sure the master node is running.")
         ray.shutdown()

@@ -1,6 +1,3 @@
-#!/bin/bash
-# Improved master node startup script
-
 set -e
 
 CONFIG_FILE="${1:-utils/config/cluster_config.yaml}"
@@ -12,7 +9,7 @@ echo ""
 
 # Check if config exists
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Config file not found: $CONFIG_FILE"
+    echo "❌ Config file not found: $CONFIG_FILE"
     exit 1
 fi
 
@@ -29,36 +26,25 @@ echo ""
 
 # Check if Ray is already running
 if ray status > /dev/null 2>&1; then
-    echo "Ray is already running"
+    echo "⚠️  Ray is already running"
     read -p "Clean up and restart? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Running cleanup..."
-        ./cleanup_ray.sh 2>/dev/null || {
-            echo "Cleanup script not found, cleaning manually..."
-            ray stop
-            pkill -9 -f ray:: 2>/dev/null || true
-            pkill -9 -f raylet 2>/dev/null || true
-            rm -rf /tmp/ray/* 2>/dev/null || true
-        }
-        sleep 3
+        echo "Cleaning up..."
+        ray stop
+        sleep 2
+        pkill -9 -f "ray::" 2>/dev/null || true
+        pkill -9 -f "raylet" 2>/dev/null || true
+        pkill -9 -f "gcs_server" 2>/dev/null || true
+        sleep 1
+        rm -rf /tmp/ray/* 2>/dev/null || true
     else
-        echo "Exiting"
+        echo "❌ Exiting"
         exit 1
     fi
 fi
 
 echo "Starting Ray head node..."
-
-# Kill any existing Ray processes first
-pkill -9 -f ray:: 2>/dev/null || true
-pkill -9 -f raylet 2>/dev/null || true
-pkill -9 -f gcs_server 2>/dev/null || true
-sleep 1
-
-# Clean up Ray temp directory
-rm -rf /tmp/ray/* 2>/dev/null || true
-
 ray start --head \
     --port=$RAY_PORT \
     --dashboard-host=0.0.0.0 \
@@ -68,24 +54,48 @@ ray start --head \
     --include-dashboard=true \
     --disable-usage-stats
 
+sleep 3
+
 # Check if Ray started successfully
-sleep 2
 if ! ray status > /dev/null 2>&1; then
-    echo "Failed to start Ray head node"
-    echo "Check logs at: /tmp/ray/session_latest/logs/raylet.out"
+    echo "❌ Failed to start Ray head node"
+    echo "Check logs: /tmp/ray/session_latest/logs/raylet.out"
     exit 1
 fi
 
 echo ""
-echo "✓ Ray head node started successfully"
+echo "✓ Ray head node started"
 echo "  Dashboard: http://$MASTER_HOST:$DASHBOARD_PORT"
 echo ""
 
 # Start the coordinator
 echo "Starting training coordinator..."
-python3 distribute/workers/distributed_master.py --config "$CONFIG_FILE" &
+
+# Check for distributed_master.py in multiple locations
+if [ -f "distributed_master.py" ]; then
+    python3 distributed_master.py --config "$CONFIG_FILE" &
+elif [ -f "distribute/workers/distributed_master.py" ]; then
+    python3 distribute/workers/distributed_master.py --config "$CONFIG_FILE" &
+else
+    echo "❌ distributed_master.py not found"
+    echo "Expected locations:"
+    echo "  - distributed_master.py"
+    echo "  - distribute/workers/distributed_master.py"
+    ray stop
+    exit 1
+fi
 
 COORDINATOR_PID=$!
+sleep 3
+
+# Check if coordinator started
+if ! ps -p $COORDINATOR_PID > /dev/null 2>&1; then
+    echo "❌ Coordinator failed to start"
+    echo "Check the output above for errors"
+    ray stop
+    exit 1
+fi
+
 echo "✓ Coordinator started (PID: $COORDINATOR_PID)"
 echo ""
 
@@ -93,9 +103,14 @@ echo "=================================================="
 echo "  Master Node Running"
 echo "=================================================="
 echo ""
-echo "Dashboard: http://$MASTER_HOST:$DASHBOARD_PORT"
-echo "Ray Status: ray status"
-echo "Stop: ray stop"
+echo "✓ Ray Status: ray status"
+echo "✓ Dashboard: http://$MASTER_HOST:$DASHBOARD_PORT"
+echo "✓ Stop: ray stop"
+echo ""
+echo "Next steps:"
+echo "  1. Start workers: ./start_worker.sh rl_worker_1"
+echo "  2. Test: python3 test_distributed_system.py"
+echo "  3. Submit jobs: python3 submit_jobs.py --query '...' --episodes 100 --wait"
 echo ""
 echo "Press Ctrl+C to stop the coordinator"
 echo "=================================================="
