@@ -5,14 +5,15 @@ Before starting ray , run these commands to stop and clean cache:
 rm -rf /tmp/ray
 ray stop --force 
 
-To start the Ray orchestrator : 
+After choosing the specific Master and Worker Nodes, on the master we run: 
+- ./start_ext_sh 
 
-python -m distribute.workers.submit_job --query "attention mechanisms" --episodes 50 --wait
+to start the Ray orchestrator. 
 
-To submit a job: 
+Then on the separate worker nodes, we run: 
 
-export RAY_ADDRESS=<HEADIP><PORT>
-python -m distribute.workers.submit_job --query "attention mechanisms" --episodes 20 --wait
+- export RAY_ADDRESS=<HEADIP><PORT>
+- python -m distribute.workers.submit_job --query "attention mechanisms" --episodes 20 --wait
 
 
 Will update the README later after training. 
