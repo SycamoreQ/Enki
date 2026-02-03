@@ -24,7 +24,6 @@ class TrainingJob:
 
 
 class RoundRobinScheduler:
-    """Simple Round Robin scheduler for distributing jobs"""
     
     def __init__(self, worker_ids: List[str]):
         self.workers = deque(worker_ids)
@@ -63,7 +62,7 @@ class DistributedTrainingCoordinator:
         # Initialize workers from config
         self.workers = {}
         for worker_config in self.config['rl_training_workers']:
-            if worker_config['host']:  # Only add workers with valid host
+            if worker_config['host']: 
                 self.workers[worker_config['name']] = {
                     'status': 'idle',
                     'current_job': None,
@@ -97,15 +96,13 @@ class DistributedTrainingCoordinator:
         )
         
         self.pending_jobs.append(job)
-        print(f"📋 Job submitted: {job_id}")
-        print(f"   Query: {query[:50]}...")
-        print(f"   Episodes: {episodes}")
+        print(f"Job submitted: {job_id}")
+        print(f"Query: {query[:50]}...")
+        print(f"Episodes: {episodes}")
         
         return job_id
     
     def dispatch_job(self, job: TrainingJob) -> bool:
-        """Dispatch a job to an available worker"""
-        # Find idle worker using round-robin
         worker_id = self.scheduler.assign_next_worker()
         
         if not worker_id or self.workers[worker_id]['status'] != 'idle':
@@ -161,11 +158,11 @@ class DistributedTrainingCoordinator:
             self.running_jobs[job.job_id] = job
             self.job_futures[job.job_id] = future
             
-            print(f"🚀 Job dispatched: {job.job_id} → {worker_id}")
+            print(f"Job dispatched: {job.job_id} → {worker_id}")
             return True
             
         except Exception as e:
-            print(f"✗ Failed to dispatch job {job.job_id}: {e}")
+            print(f"Failed to dispatch job {job.job_id}: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -210,10 +207,10 @@ class DistributedTrainingCoordinator:
                     self.workers[worker_id]['jobs_completed'] += 1
                     
                     duration = job.completed_at - job.started_at
-                    print(f"✓ Job completed: {job_id} ({duration:.1f}s)")
-                    print(f"  Worker: {worker_id}")
-                    print(f"  Avg reward: {result.get('avg_reward', 0):.2f}")
-                    print(f"  Max similarity: {result.get('max_similarity', 0):.3f}")
+                    print(f"Job completed: {job_id} ({duration:.1f}s)")
+                    print(f"Worker: {worker_id}")
+                    print(f"Avg reward: {result.get('avg_reward', 0):.2f}")
+                    print(f"Max similarity: {result.get('max_similarity', 0):.3f}")
                     
                 except Exception as e:
                     job.status = "failed"
@@ -280,10 +277,7 @@ class DistributedTrainingCoordinator:
 
 
 async def run_master_loop(coordinator, duration_sec: float = None):
-    """Main coordination loop"""
-    print("\n" + "="*80)
     print("STARTING DISTRIBUTED TRAINING COORDINATOR")
-    print("="*80)
     print(f"Duration: {'infinite' if duration_sec is None else f'{duration_sec}s'}")
     print("="*80 + "\n")
     
@@ -314,7 +308,7 @@ async def run_master_loop(coordinator, duration_sec: float = None):
             
             # Check duration
             if duration_sec and (time.time() - start_time) >= duration_sec:
-                print("\n✓ Coordination loop duration complete")
+                print("\nCoordination loop duration complete")
                 break
             
             await asyncio.sleep(1.0)
@@ -348,9 +342,7 @@ async def main():
     master_config = config['master_node']
     
     # Initialize Ray head node
-    print("\n" + "="*80)
     print("INITIALIZING RAY HEAD NODE")
-    print("="*80)
     print(f"Host: {master_config['host']}")
     print(f"Port: {master_config['ray_port']}")
     print(f"Dashboard: {master_config['dashboard_port']}")
@@ -363,9 +355,9 @@ async def main():
         namespace='distributed_training'  # Use named namespace
     )
     
-    print("✓ Ray head node started")
-    print(f"✓ Dashboard: http://{master_config['host']}:{master_config['dashboard_port']}")
-    print(f"✓ Cluster resources: {ray.cluster_resources()}\n")
+    print("Ray head node started")
+    print(f"Dashboard: http://{master_config['host']}:{master_config['dashboard_port']}")
+    print(f"Cluster resources: {ray.cluster_resources()}\n")
     
     # Create coordinator actor
     coordinator = DistributedTrainingCoordinator.options(
@@ -376,7 +368,7 @@ async def main():
     ).remote(config_path=args.config)
     
     # Wait for workers to connect
-    print("Waiting for workers to connect (15s)...")
+    print("Waiting for workers to connect")
     await asyncio.sleep(15)
     
     # Run coordination loop
@@ -384,9 +376,7 @@ async def main():
     
     # Print final status
     status = ray.get(coordinator.get_status.remote())
-    print("\n" + "="*80)
     print("FINAL STATUS")
-    print("="*80)
     print(f"Total jobs completed: {status['jobs']['completed']}")
     print(f"Worker job distribution:")
     for wid, count in status['scheduler']['job_distribution'].items():
@@ -401,7 +391,7 @@ async def main():
         while True:
             await asyncio.sleep(60)
     except KeyboardInterrupt:
-        print("\n🛑 Shutting down...")
+        print("\nShutting down...")
         ray.shutdown()
 
 

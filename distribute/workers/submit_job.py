@@ -17,7 +17,7 @@ def submit_staged_jobs(coordinator, curriculum_file):
     
     for stage_name, jobs in config['stages'].items():
         print(f"\n{'='*80}")
-        print(f"🎯 STAGE: {stage_name.upper()}")
+        print(f"STAGE: {stage_name.upper()}")
         print(f"{'='*80}")
         
         stage_jobs = []
@@ -54,10 +54,12 @@ def main():
     parser.add_argument('--ray-address', type=str, default=os.getenv('RAY_ADDRESS', 'auto'))
     args = parser.parse_args()
     
-    ray.init(address=args.ray_address)
+    ray.init(
+        address=args.ray_address ,
+        coordinator = "distributed_training")
     print(f" Connected to {args.ray_address}")
     
-    coordinator = ray.get_actor("training_coordinator")
+    coordinator = ray.get_actor("training_coordinator",namespace="distributed_training")
     
     # Submit curriculum
     jobs = submit_staged_jobs(coordinator, args.curriculum)
