@@ -25,7 +25,6 @@ def submit_staged_jobs(coordinator, curriculum_file):
             print(f"{job_cfg['description']}")
             print(f"Query: {job_cfg['query'][:60]}...")
             print(f"Episodes: {job_cfg['episodes']}")
-            print(f"Workers: {', '.join(job_cfg['target_workers'])}")
             
             job_id = ray.get(coordinator.submit_job.remote(
                 query=job_cfg['query'],
