@@ -4,7 +4,6 @@ stages:
       episodes: 100
       difficulty: easy
       description: "Stage 1: Direct transformer attention papers"
-      target_workers: ["rl_worker_1"]  # Mac CPU
     
     - query: "convolutional neural networks CNN"
       episodes: 100
