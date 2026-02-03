@@ -56,7 +56,7 @@ def main():
     
     ray.init(
         address=args.ray_address ,
-        coordinator = "distributed_training")
+        namespace = "distributed_training")
     print(f" Connected to {args.ray_address}")
     
     coordinator = ray.get_actor("training_coordinator",namespace="distributed_training")
