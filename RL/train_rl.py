@@ -96,15 +96,15 @@ async def load_training_cache():
     
     with open(os.path.join(cache_dir, 'training_papers_1M.pkl'), 'rb') as f:
         papers = pickle.load(f)
-    print(f"✓ Loaded {len(papers):,} papers")
+    print(f"Loaded {len(papers):,} papers")
 
     with open(os.path.join(cache_dir, 'edge_cache_1M.pkl'), 'rb') as f:
         edge_cache = pickle.load(f)
-    print(f"✓ Loaded edge cache")
+    print(f"Loaded edge cache")
 
     with open(os.path.join(cache_dir, 'paper_id_set_1M.pkl'), 'rb') as f:
         paper_id_set = pickle.load(f)
-    print(f"✓ Loaded paper ID index")
+    print(f"Loaded paper ID index")
 
     return papers, edge_cache, paper_id_set
 
@@ -172,7 +172,6 @@ class DistributedRLTrainer:
         print(f"  Database: {db_host}:{db_port}/{db_name}")
     
     async def _initialize_training_environment(self):
-        """Initialize training environment (called once per worker)."""
         if self._initialized:
             return
 
@@ -272,6 +271,13 @@ class DistributedRLTrainer:
 
         # Initialize curriculum manager with base query context
         curriculum = CurriculumManager(self.papers, self.encoder)
+
+        if torch.cuda.is_available():
+            device = torch.device('cuda:0')
+            print(f"[{self.worker_id}] DDQN Agent initialized on GPU: {torch.cuda.get_device_name(0)}")
+        else:
+            device = torch.device('cpu')
+            print(f"[{self.worker_id}] DDQN Agent initialized on CPU")
         
         # Initialize agent
         agent = DDQLAgent(
@@ -328,7 +334,7 @@ class DistributedRLTrainer:
                 # Validate neighbors exist
                 neighbor_ids = [tid for _, tid in self.env.training_edge_cache[episode_start_paper_id]]
                 if not any(nid in self.embedded_ids for nid in neighbor_ids):
-                    print(f"  → Skipping: no valid neighbors for {episode_start_paper_id}")
+                    print(f"Skipping: no valid neighbors for {episode_start_paper_id}")
                     episode_rewards.append(0.0)
                     episode_similarities.append(0.0)
                     episode_lengths.append(0)
@@ -542,7 +548,7 @@ class DistributedRLTrainer:
         }
         
         # Final summary
-        print(f"\n[{self.worker_id}] 🎓 Curriculum Training Complete!")
+        print(f"\n[{self.worker_id}] Training Complete")
         print(f"  Duration: {duration:.1f}s ({duration/60:.1f} min)")
         print(f"  Total Steps: {total_training_steps:,}")
         print(f"  Avg Reward: {result['avg_reward']:.2f}")

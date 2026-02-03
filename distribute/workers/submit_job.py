@@ -16,10 +16,7 @@ def submit_staged_jobs(coordinator, curriculum_file):
     all_jobs = []
     
     for stage_name, jobs in config['stages'].items():
-        print(f"\n{'='*80}")
         print(f"STAGE: {stage_name.upper()}")
-        print(f"{'='*80}")
-        
         stage_jobs = []
         for job_cfg in jobs:
             print(f"{job_cfg['description']}")
@@ -63,11 +60,18 @@ def main():
     jobs = submit_staged_jobs(coordinator, args.curriculum)
     
     if args.wait:
-        print("\nWaiting for all jobs...")
+        print("\nWaiting for jobs to complete...")
         for job_info in jobs:
-            result = ray.get(coordinator.get_results.remote(job_info['id']))
-            print(f"\n✓ {job_info['config']['description'][:60]}...")
-            print(f"  Avg Reward: {result['result']['avg_reward']:.2f}")
+            # Poll until result available
+            while True:
+                result = ray.get(coordinator.get_results.remote(job_info['id']))
+                if result and result.get('result'):  # Job completed
+                    print(f"\n{job_info['config']['description'][:60]}...")
+                    print(f"Avg Reward: {result['result']['avg_reward']:.2f}")
+                    print(f"Max Sim: {result['result']['max_similarity']:.3f}")
+                    break
+                print(f"  {job_info['config']['query'][:40]}... waiting...", end='\r')
+                time.sleep(5)
     
     ray.shutdown()
 

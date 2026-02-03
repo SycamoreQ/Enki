@@ -386,7 +386,6 @@ async def main():
     print("Master node will continue running. Press Ctrl+C to stop.")
     print("Workers can continue submitting jobs via the coordinator actor.\n")
     
-    # Keep running
     try:
         while True:
             await asyncio.sleep(60)
