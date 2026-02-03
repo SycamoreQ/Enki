@@ -1,49 +1,75 @@
-jobs:
-  - query: "attention mechanisms transformers"
-    episodes: 100
-    description: "Stage 1: Direct transformer attention papers"
+stages:
+  easy:  # Stage 1 - Simple queries (CPU workers)
+    - query: "attention mechanisms transformers"
+      episodes: 100
+      difficulty: easy
+      description: "Stage 1: Direct transformer attention papers"
+      target_workers: ["rl_worker_1"]  # Mac CPU
     
-  - query: "convolutional neural networks CNN"
-    episodes: 100
-    description: "Stage 1: Core CNN architecture papers"
+    - query: "convolutional neural networks CNN"
+      episodes: 100
+      difficulty: easy
+      description: "Stage 1: Core CNN architecture papers"
+      target_workers: ["rl_worker_1"]
     
-  - query: "BERT language model pretraining"
-    episodes: 100
-    description: "Stage 1: Foundational NLP models"
+    - query: "BERT language model pretraining"
+      episodes: 100
+      difficulty: easy
+      description: "Stage 1: Foundational NLP models"
+      target_workers: ["rl_worker_1"]
+  
+  medium:  # Stage 2 - Medium queries (GPU worker)
+    - query: "graph neural networks GNN citation prediction"
+      episodes: 150
+      difficulty: medium
+      description: "Stage 2: GNN research applications"
+      target_workers: ["rl_worker_2"]  # GPU
     
-  - query: "graph neural networks GNN citation prediction"
-    episodes: 150
-    description: "Stage 2: GNN research applications"
+    - query: "reinforcement learning multi-agent systems"
+      episodes: 150
+      difficulty: medium
+      description: "Stage 2: RL applications"
+      target_workers: ["rl_worker_2"]
     
-  - query: "reinforcement learning multi-agent systems"
-    episodes: 150
-    description: "Stage 2: RL applications"
+    - query: "federated learning privacy differential privacy"
+      episodes: 150
+      difficulty: medium
+      description: "Stage 2: Federated learning systems"
+      target_workers: ["rl_worker_2"]
+  
+  hard:  # Stage 3-4 - Hard queries (All workers parallel)
+    - query: "quantum machine learning quantum reinforcement learning"
+      episodes: 200
+      difficulty: hard
+      description: "Stage 3: Quantum ML cross-domain"
+      target_workers: ["rl_worker_1", "rl_worker_2"]
     
-  - query: "federated learning privacy differential privacy"
-    episodes: 150
-    description: "Stage 2: Federated learning systems"
+    - query: "causal inference neural networks causal ML"
+      episodes: 200
+      difficulty: hard
+      description: "Stage 3: Causal inference + deep learning"
+      target_workers: ["rl_worker_1", "rl_worker_2"]
     
-  - query: "quantum machine learning quantum reinforcement learning"
-    episodes: 200
-    description: "Stage 3: Quantum ML cross-domain"
+    - query: "self-supervised learning vision language SSL"
+      episodes: 200
+      difficulty: hard
+      description: "Stage 3: Multimodal self-supervision"
+      target_workers: ["rl_worker_1", "rl_worker_2"]
     
-  - query: "causal inference neural networks causal ML"
-    episodes: 200
-    description: "Stage 3: Causal inference + deep learning"
+    - query: "foundation models emergent capabilities scaling laws"
+      episodes: 250
+      difficulty: expert
+      description: "Stage 4: LLM foundation models"
+      target_workers: ["rl_worker_1", "rl_worker_2"]
     
-  - query: "self-supervised learning vision language SSL"
-    episodes: 200
-    description: "Stage 3: Multimodal self-supervision"
+    - query: "continual learning catastrophic forgetting"
+      episodes: 250
+      difficulty: expert
+      description: "Stage 4: Continual learning challenges"
+      target_workers: ["rl_worker_1", "rl_worker_2"]
     
-  - query: "foundation models emergent capabilities scaling laws"
-    episodes: 250
-    description: "Stage 4: LLM foundation models"
-    
-  - query: "continual learning catastrophic forgetting"
-    episodes: 250
-    description: "Stage 4: Continual learning challenges"
-    
-  - query: "neuro-symbolic AI hybrid reasoning"
-    episodes: 250
-    description: "Stage 4: Neurosymbolic integration"
-
+    - query: "neuro-symbolic AI hybrid reasoning"
+      episodes: 250
+      difficulty: expert
+      description: "Stage 4: Neurosymbolic integration"
+      target_workers: ["rl_worker_1", "rl_worker_2"]
