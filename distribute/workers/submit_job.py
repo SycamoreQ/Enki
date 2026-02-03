@@ -31,7 +31,6 @@ def submit_staged_jobs(coordinator, curriculum_file):
                 query=job_cfg['query'],
                 episodes=job_cfg['episodes'],
                 start_paper_id=job_cfg.get('start_paper_id', 'arxiv_1706.03762'),
-                target_workers=job_cfg.get('target_workers', [])
             ))
             stage_jobs.append({
                 'id': job_id,
