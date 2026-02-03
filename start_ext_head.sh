@@ -1,10 +1,9 @@
-#!/bin/bash
-echo "🚀 Starting Ray Head Node (macOS - External GPU Access)"
+echo "Starting Ray Head Node (macOS - External GPU Access)"
 
 # Kill existing Ray
 ray stop || true
 
-# Get your LAN IP (macOS compatible)
+# Get your LAN IP
 LAN_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || ipconfig getifaddr enp0s3 || hostname -I | cut -d' ' -f1 || echo "192.168.1.10")
 echo "Detected LAN IP: $LAN_IP"
 
@@ -19,7 +18,7 @@ ray start \
   --include-dashboard=true \
   --disable-usage-stats
 
-echo "✅ Ray Head Started!"
+echo "Ray Head Started"
 echo "  Connect URL: $LAN_IP:6379"
 echo "  Dashboard: http://$LAN_IP:8265"
 echo "  GPU workers run:"
