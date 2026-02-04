@@ -1,6 +1,7 @@
 echo "Starting Ray Head Node (macOS - External GPU Access)"
 
 # Kill existing Ray
+
 ray stop || true
 
 # Get your LAN IP
@@ -14,8 +15,10 @@ ray start \
   --node-ip-address="$LAN_IP" \
   --dashboard-port=8265 \
   --dashboard-host=0.0.0.0 \
+  --object-store-memory=8000000000 \
   --num-gpus=0 \
   --include-dashboard=true \
+  --temp-dir=$HOME/ray_tmp \
   --disable-usage-stats
 
 echo "Ray Head Started"
