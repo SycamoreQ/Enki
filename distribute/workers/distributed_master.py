@@ -114,13 +114,8 @@ class DistributedTrainingCoordinator:
         worker_config = self.workers[worker_id]['config']
         
         try:
-            # Try to import real trainer, fall back to mock
-            try:
-                from RL.train_rl import DistributedRLTrainer
-                print(f"Using real DistributedRLTrainer for {worker_id}")
-            except (ImportError, ModuleNotFoundError) as e:
-                print(f"Real trainer not available ({e}), using mock trainer")
-                from workers.mock_trainer import MockRLTrainer as DistributedRLTrainer
+            from RL.train_rl import DistributedRLTrainer
+            print(f"Using real DistributedRLTrainer for {worker_id}")
             
             # Create remote trainer actor
             trainer = DistributedRLTrainer.options(

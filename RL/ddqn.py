@@ -12,6 +12,7 @@ from .noisy_layer import NoisyLinear
 from .n_step import NStepBuffer
 
 
+
 class QNetwork(nn.Module):
     def __init__(self, state_dim, action_emb_dim, relation_dim=13):
         super(QNetwork, self).__init__()

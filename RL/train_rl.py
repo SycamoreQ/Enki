@@ -272,6 +272,8 @@ class DistributedRLTrainer:
         # Initialize curriculum manager with base query context
         curriculum = CurriculumManager(self.papers, self.encoder)
 
+        import torch
+
         if torch.cuda.is_available():
             device = torch.device('cuda:0')
             print(f"[{self.worker_id}] DDQN Agent initialized on GPU: {torch.cuda.get_device_name(0)}")
