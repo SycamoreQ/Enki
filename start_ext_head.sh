@@ -14,7 +14,7 @@ echo "Detected LAN IP: $LAN_IP"
 ray start --head \
   --port=6379 \
   --node-ip-address="$LAN_IP" \
-  --dashboard-port=8266 \
+  --dashboard-port=8265 \
   --dashboard-host=0.0.0.0 \
   --object-store-memory=2000000000 \
   --num-gpus=0 \
