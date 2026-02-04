@@ -8,6 +8,10 @@ ray stop || true
 LAN_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || ipconfig getifaddr enp0s3 || hostname -I | cut -d' ' -f1 || echo "192.168.1.10")
 echo "Detected LAN IP: $LAN_IP"
 
+export RAY_ENABLE_MAC_LARGE_OBJECT_STORE=1
+export RAY_TMPDIR="$HOME/ray_tmp_macos"
+mkdir -p "$RAY_TMPDIR"
+
 # Start Ray HEAD with EXTERNAL binding
 ray start \
   --head \
@@ -15,7 +19,7 @@ ray start \
   --node-ip-address="$LAN_IP" \
   --dashboard-port=8265 \
   --dashboard-host=0.0.0.0 \
-  --object-store-memory=8000000000 \
+  --object-store-memory=4000000000 \
   --num-gpus=0 \
   --include-dashboard=true \
   --temp-dir=$HOME/ray_tmp \
