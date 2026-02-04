@@ -50,7 +50,7 @@ class WandBLogger:
 
 
 DEFAULT_CONFIG = {
-    "total_episodes": 1000,
+    "total_episodes": 10000,
     "max_steps_per_episode": 12,
     "batch_size": 64,
     "learning_rate": 1e-4,
