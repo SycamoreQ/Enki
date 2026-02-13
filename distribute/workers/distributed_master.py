@@ -344,6 +344,7 @@ async def main():
     print("="*80 + "\n")
     
     ray.init(
+        address="auto", 
         dashboard_host='0.0.0.0',
         dashboard_port=master_config['dashboard_port'],
         include_dashboard=True,
