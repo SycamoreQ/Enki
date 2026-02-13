@@ -16,13 +16,13 @@ ray start --head \
   --node-ip-address="$LAN_IP" \
   --dashboard-port=8265 \
   --dashboard-host=0.0.0.0 \
-  --object-store-memory=8000000000 \
+  --object-store-memory=4000000000 \
   --num-gpus=0 \
   --disable-usage-stats
 
 echo "Ray Head Started"
 echo "  Connect URL: $LAN_IP:6379"
-echo "  Dashboard: http://$LAN_IP:8266"  # Changed port!
+echo "  Dashboard: http://$LAN_IP:8266"
 echo "  Temp dir: $RAY_TMPDIR"
 echo "  Worker command:"
 echo "    export RAY_TMPDIR=\"$RAY_TMPDIR\""
