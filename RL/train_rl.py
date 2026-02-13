@@ -141,7 +141,7 @@ async def build_embeddings():
     return papers, edge_cache_str, paper_id_set, embeddings, encoder
 
 
-@ray.remote(num_gpus=1)
+@ray.remote
 class DistributedRLTrainer:
     """
     Distributed RL trainer for parallel training with curriculum learning.
@@ -275,7 +275,7 @@ class DistributedRLTrainer:
         import torch
 
         if torch.cuda.is_available():
-            device = torch.device('cuda:0')
+            device = torch.device("cuda") 
             print(f"[{self.worker_id}] DDQN Agent initialized on GPU: {torch.cuda.get_device_name(0)}")
         else:
             device = torch.device('cpu')
