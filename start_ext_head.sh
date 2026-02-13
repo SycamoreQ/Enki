@@ -16,6 +16,7 @@ ray start --head \
   --node-ip-address="$LAN_IP" \
   --dashboard-port=8265 \
   --dashboard-host=0.0.0.0 \
+  --object_spilling_directory="/tmp/ray_spill" \
   --object-store-memory=4000000000 \
   --num-gpus=0 \
   --disable-usage-stats
