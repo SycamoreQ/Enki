@@ -18,7 +18,7 @@ ray start --head \
   --dashboard-host=0.0.0.0 \
   --object-spilling-directory="/tmp/ray_spill" \
   --object-store-memory=2000000000 \
-  --num-gpus=2 \
+  --num-gpus=0 \
   --disable-usage-stats
 
 echo "Ray Head Started"

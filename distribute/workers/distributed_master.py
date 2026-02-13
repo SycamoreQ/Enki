@@ -121,7 +121,7 @@ class DistributedTrainingCoordinator:
             trainer = DistributedRLTrainer.options(
                 name=f"trainer_{worker_id}_{job.job_id}",
                 num_cpus=2, 
-                num_gpus=2,  # No GPU in local mode
+                num_gpus=1, 
                 memory=min(worker_config['resources']['memory'], 1000000000)  # 1GB max
             ).remote(
                 worker_id=worker_id,
