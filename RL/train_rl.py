@@ -141,7 +141,7 @@ async def build_embeddings():
     return papers, edge_cache_str, paper_id_set, embeddings, encoder
 
 
-@ray.remote
+@ray.remote(num_gpus=1)
 class DistributedRLTrainer:
     """
     Distributed RL trainer for parallel training with curriculum learning.
